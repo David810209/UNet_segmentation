@@ -31,11 +31,12 @@ def train(model, num_epochs, train_loader, optimizer, start_epoch):
             y = y.to(device)
             with autocast():
                 out = model(x)
-                loss = torch.nn.MSELoss()(out, y)
+                # loss = torch.nn.MSELoss()(out, y)
+                loss = torch.nn.BCEWithLogitsLoss()(out, y)
             scalar.scale(loss).backward()
-            scalar.unscale_(optimizer=optimizer)
+            scalar.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            scalar.step(optimizer=optimizer)
+            scalar.step(optimizer)
             scalar.update()
             optimizer.zero_grad()
             total_loss += loss.item()
@@ -49,7 +50,7 @@ def train(model, num_epochs, train_loader, optimizer, start_epoch):
         # scheduler.step(val_loss)
         loss_arr.append((epoch+1,  avg_training_loss, val_loss))
 
-        path = f'model_1107_{epoch + 1}.pt'
+        path = f'model_bce_0-1_{epoch + 1}.pt'
         if epoch % 2:
             torch.save({
                 'model_state_dict': model.state_dict(),
@@ -65,7 +66,8 @@ def train(model, num_epochs, train_loader, optimizer, start_epoch):
     np.savetxt('loss.txt', loss_array, header='epoch, avg_training_loss, avg_val_loss', delimiter=', ', fmt='%s')
 
 
-def eval(model, val_loader, epoch):
+
+def eval(model, val_loader, epoch, device='cuda'):
     model.eval()
     num_correct = 0
     num_pixels = 0
@@ -75,20 +77,27 @@ def eval(model, val_loader, epoch):
         for x, y, filename in val_iterator:
             x = x.to(device)
             y = y.to(device)
-            out = model(x)
-            loss = torch.nn.MSELoss()(out, y)
-            probability = torch.sigmoid(out)
-            predictions = (probability > 0.5).float()
-            num_correct += (predictions == y).sum().item()  
+            
+            # 啟用 AMP 模式
+            with autocast():
+                out = model(x)
+                # loss = torch.nn.MSELoss()(out, y)
+                loss = torch.nn.BCEWithLogitsLoss()(out, y)
+                probability = torch.sigmoid(out)
+                predictions = (probability > 0.5).float()
+            
+            # 計算準確度
+            num_correct += (predictions == y).sum().item()
             num_pixels += torch.numel(predictions)
             total_loss += loss.item()
     
-    accuracy = num_correct / num_pixels  
+    accuracy = num_correct / num_pixels
     avg_loss = total_loss / len(val_loader)
     
     print(f'Epoch [{epoch + 1}] Validation Loss: {avg_loss:.4f}, Accuracy: {accuracy:.4f}')
     
-    return avg_loss 
+    return avg_loss
+
 
 if __name__ == '__main__':
     # Check the device we are using is GPU or CPU

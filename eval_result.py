@@ -10,7 +10,7 @@ import cv2
 import shutil
 
 # 設定模型檔案路徑
-model_path = 'model_1107_2.pt'
+model_path = 'model_BCELoss_-1-1.pt'
 
 def load_model(device):
     # 載入訓練好的 UNet 模型
@@ -19,11 +19,24 @@ def load_model(device):
     return model
 
 def save_output_as_image(tensor, output_dir, filename):
-    # 將模型輸出保存為圖像，並進行二值化處理
+    # 將模型輸出轉換為灰階圖像
     output_image = tensor.squeeze().cpu().numpy()
-    binary_mask = (output_image > 0.5).astype(np.uint8) * 255
-    image = Image.fromarray(binary_mask)
+    
+    # 將輸出範圍縮放到 [0, 255] 之間
+    output_image = (output_image - output_image.min()) / (output_image.max() - output_image.min())
+    output_image = (output_image * 255).astype(np.uint8)
+    
+    # 將結果保存為灰階圖像
+    image = Image.fromarray(output_image, mode='L')
     image.save(os.path.join(output_dir, filename))
+
+
+# def save_output_as_image(tensor, output_dir, filename):
+#     # 將模型輸出保存為圖像，並進行二值化處理
+#     output_image = tensor.squeeze().cpu().numpy()
+#     binary_mask = (output_image > 0.5).astype(np.uint8) * 255
+#     image = Image.fromarray(binary_mask)
+#     image.save(os.path.join(output_dir, filename))
 
 def evaluate_model(model, test_loader, output_dir='output_images', device='cuda'):
     # 評估模型並將結果保存為圖像
@@ -39,20 +52,27 @@ def evaluate_model(model, test_loader, output_dir='output_images', device='cuda'
             x = x.to(device)
             y = y.to(device)
 
-            # 推論並應用 sigmoid 函數
             output = model(x)
             output = torch.sigmoid(output)
-
-            # 二值化輸出
-            predictions = (output > 0.5).float()
-            
+             # 二值化輸出
+            # predictions = (output > 0.5).float()
             # 計算準確度
-            num_correct += (predictions == y).sum().item()
-            num_pixels += torch.numel(predictions)
+            # num_correct += (predictions == y).sum().item()
+            # num_pixels += torch.numel(predictions)
 
-            # 保存每張圖片的推論結果
-            for i in range(predictions.size(0)):
-                save_output_as_image(predictions[i], output_dir, f"out_{filename[i]}")
+            # # 保存每張圖片的推論結果
+            # for i in range(predictions.size(0)):
+            #     save_output_as_image(predictions[i], output_dir, f"out_{filename[i]}")
+            
+            # 打印輸出範圍
+            print(f"Batch {idx}: Output Min: {output.min().item()}, Output Max: {output.max().item()}, Output Mean: {output.mean().item()}")
+
+            # 如果你希望保存原始輸出，則可以用下面的代碼
+            for i in range(output.size(0)):
+                save_output_as_image(output[i], output_dir, f"raw_out_{filename[i]}")
+
+
+
 
     accuracy = num_correct / num_pixels
     print(f"Accuracy: {accuracy * 100:.2f}%")
@@ -130,7 +150,7 @@ if __name__ == '__main__':
     model = load_model(device=device)
 
     # 清除之前的結果
-    for folder in ['output_combine', 'output_images', 'test', 'test_mask']:
+    for folder in ['output_combine', 'output_images']:
         if os.path.exists(folder):
             shutil.rmtree(folder)
 
@@ -138,11 +158,11 @@ if __name__ == '__main__':
     os.makedirs('output_combine', exist_ok=True)
 
     # 加載測試數據
-    test_data = CustomDataset('train_data', 'train_data_mask', transform=T.Compose([T.ToTensor(), T.Resize((256, 256))]))
+    test_data = CustomDataset('test', 'test_mask', transform=T.Compose([T.ToTensor(), T.Resize((512, 512))]))
     test_loader = DataLoader(test_data, batch_size=4, shuffle=False)
 
     # 模型評估
     evaluate_model(model, test_loader, output_dir='output_images', device=device)
 
     # 合併圖片
-    combine_images('train_data', 'train_data_mask', 'output_images', 'output_combine')
+    combine_images('test', 'test_mask', 'output_images', 'output_combine')
