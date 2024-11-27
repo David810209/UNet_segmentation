@@ -173,15 +173,20 @@ def fill_and_color_holes(binary_image, num_labels, labels, stats, mask, backgrou
 def process_and_merge_images():
     os.makedirs(output_dir, exist_ok=True)
     limit = 0
+    cur_id = 1
     results = []  # 用於保存 CSV 統計結果
     distribution_results = []
     input_files = [f for f in os.listdir(input_dir) if f.endswith(".jpg")]
 
     for input_file in tqdm(input_files, desc="Processing images"):
-        limit += 1
-        if limit == 30:
-            break
         id = input_file.split('_')[1]
+        if int(id) != cur_id:
+            continue
+        if limit == 4:
+            cur_id += 1
+            limit = 0
+            continue
+        limit += 1
         center_ratio, offset_x, offset_y = circle_info[id]['ratio'], circle_info[id]['x'], circle_info[id]['y']
         input_path = os.path.join(input_dir, input_file)
 
