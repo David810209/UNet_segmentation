@@ -7,6 +7,7 @@ from PIL import Image
 import numpy as np
 import os
 from torch.nn import init
+
 # # Build one of the main components - DoubleConv - for UNet
 # class DoubleConv(nn.Module):
 #   def __init__(self, in_channels, out_channels):
@@ -101,6 +102,7 @@ class up_conv(nn.Module):
 
 class UNet(nn.Module):
     def __init__(self, img_ch=3, output_ch=1, multi_stage=False):
+    # def __init__(self, img_ch=1, output_ch=1, multi_stage=False):
         super(UNet, self).__init__()
 
         self.Maxpool = nn.MaxPool2d(kernel_size=2, stride=2)
@@ -190,28 +192,37 @@ class UNet(nn.Module):
         d1 = self.Conv_1x1(d2)
         d1 = self.activation(d1)
         return d1
-    
+
+
 # Build CustomDataset for loading data
 class CustomDataset(Dataset):
     def __init__(self, image_dir, mask_dir, transform):
         super().__init__()
         self.image_dir = image_dir
         self.mask_dir = mask_dir
-        self.transform= transform
-        self.images = os.listdir(image_dir)
-
+        self.transform = transform
         
+        self.images = [
+            img for img in os.listdir(image_dir)
+            if os.path.exists(os.path.join(mask_dir, img.replace(".jpg", "_mask.jpg")))
+        ]
+
     def __len__(self):
         return len(self.images)
-    
+
     def __getitem__(self, idx):
         img_path = os.path.join(self.image_dir, self.images[idx])
-        mask_path = os.path.join(self.mask_dir, self.images[idx].replace('.jpg', '_mask.jpg'))
+        mask_path = os.path.join(
+            self.mask_dir, self.images[idx].replace(".jpg", "_mask.jpg")
+        )
         
-        image = np.array(Image.open(img_path).convert('RGB'))
+        # 加載圖像和掩膜
+        image = np.array(Image.open(img_path).convert("RGB"))
+        # image = np.array(Image.open(img_path).convert("L"))
         image = self.transform(image)
-        # image = image * 2 - 1
-        mask = np.array(Image.open(mask_path).convert('L'))
+        image = image * 2 - 1
+
+        mask = np.array(Image.open(mask_path).convert("L"))
         mask = self.transform(mask)
-        
+
         return image, mask, self.images[idx]
