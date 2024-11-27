@@ -37,8 +37,6 @@ def load_model(device):
 def evaluate_model(model, test_loader, output_dir,output_dir2, device="cuda"):
     # 評估模型並將結果保存為圖像
     model.eval()
-    os.makedirs(output_dir, exist_ok=True)
-    os.makedirs(output_dir2, exist_ok=True)
 
     losses = []
 
@@ -94,8 +92,8 @@ if __name__ == "__main__":
     print(f"Using device: {device}")
 
     model = load_model(device=device)
-    output_dir = f"output_{model_name}_combine"
-    output_dir2  = f"output_{model_name}_single"
+    output_dir = f"output_combine"
+    output_dir2  = f"output_single"
     # 清除之前的結果
     for folder in [output_dir, output_dir2]:
         if os.path.exists(folder):
@@ -106,11 +104,22 @@ if __name__ == "__main__":
 
     # 加載測試數據
     test_data = CustomDataset(
-        "all_data",
-        "all_data_mask",
+        "train_data",
+        "train_data_mask",
         transform=T.Compose([T.ToTensor(), T.Resize((512, 512))]),
     )
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
 
     # 模型評估
     evaluate_model(model, test_loader,output_dir,output_dir2)
+
+# 加載測試數據
+    test_data2 = CustomDataset(
+        "test_data",
+        "test_data_mask",
+        transform=T.Compose([T.ToTensor(), T.Resize((512, 512))]),
+    )
+    test_loader2 = DataLoader(test_data2, batch_size=1, shuffle=False)
+
+    # 模型評估
+    evaluate_model(model, test_loader2,output_dir,output_dir2)

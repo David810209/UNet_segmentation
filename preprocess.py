@@ -156,9 +156,10 @@ def process_test_dataset():
 
 
 def process_full_dataset():
-    dataset_path = "dataset"
-    data_path = "data"
-    res_path = "data_mask"
+    # dataset_path = "dataset"
+    dataset_path = "/data1/raytsai/touching_"
+    data_path = "/data1/raytsai/test"
+    res_path = "/data1/raytsai/test_mask"
     os.makedirs(data_path, exist_ok=True) 
     os.makedirs(res_path, exist_ok=True) 
     for i in os.listdir(dataset_path):
@@ -169,15 +170,15 @@ def process_full_dataset():
         if not i[0].isdigit():
             continue
         # 讀取子資料夾中的 .tif 檔案
-        tif_files = [j for j in os.listdir(os.path.join(dataset_path, i)) if j.endswith(".jpg")]
-        if i != '9':
-            continue
+        tif_files = [j for j in os.listdir(os.path.join(dataset_path, i)) if j.endswith(".tif")]
+        # if i != '9':
+        #     continue
         for j in tqdm(tif_files, desc=f"Processing files in folder {i}"):
-            if j[4] == '.' or j[3] == '.' :
-                continue
+            # if j[4] == '.' or j[3] == '.' :
+            #     continue
 
-            if  int(j[2:5]) > 902 or int(j[2:5]) < 902:
-                continue
+            # if  int(j[2:5]) > 902 or int(j[2:5]) < 902:
+            #     continue
             t += 1
             # if t == 21:
             #     break
