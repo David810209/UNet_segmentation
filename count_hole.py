@@ -5,9 +5,39 @@ import pandas as pd
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import re
-input_dir="output_single"
-output_dir= f"output_analysis"
+input_dir="output_all_single"
+origin_dir = "all_data"
+output_dir= f"output_analysis_all"
 csv_path= f"output_analysis.csv"
+
+def add_scale_bar(image, position, color=(255, 255, 255), thickness=2,pixel_to_micrometer=1.3, scale_length_micrometer=100):
+    """
+    在圖像上添加比例尺。
+    Args:
+        image (np.array): 圖像數據 (BGR 格式)。
+        pixel_to_micrometer (float): 每個像素的微米數。
+        scale_length_micrometer (float): 比例尺的實際長度（微米）。
+        position (tuple): 比例尺左上角的位置 (x, y)。
+        color (tuple): 比例尺的顏色 (B, G, R)。
+        thickness (int): 比例尺的線條厚度。
+    Returns:
+        np.array: 帶有比例尺的圖像。
+    """
+    # 計算比例尺對應的像素長度
+    scale_length_pixels = int(scale_length_micrometer / pixel_to_micrometer)
+
+    # 繪製比例尺
+    x, y = position
+    cv2.line(image, (x, y), (x + scale_length_pixels, y), color, thickness)
+
+    # 添加文字標籤
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.5
+    text = f"{scale_length_micrometer} um"
+    cv2.putText(image, text, (x, y - 10), font, font_scale, color, thickness, cv2.LINE_AA)
+
+    return image
+
 
 
 circle_info = {
@@ -16,67 +46,11 @@ circle_info = {
     '3': {"ratio": 0.7, "x": 10, "y": -50},
     '4': {"ratio": 0.6, "x": 10, "y": -50},
     '5': {"ratio": 0.65, "x": 10, "y": -50},
-    '6': {"ratio": 0.6, "x": 0, "y": 20},
+    '6': {"ratio": 0.6, "x": -30, "y": -60},
     '7': {"ratio": 0.55, "x": 10, "y": -20},
     '8': {"ratio": 0.65, "x": 40, "y": 0},
     '9': {"ratio": 0.65, "x": 0, "y": 20}
 }
-def analyze_hole_with_cross_section(original_gray_image, label, stats, output_dir, expansion=15):
-    """
-    針對特定孔洞進行放大，並沿橫切線分析灰階值變化。
-    """
-    # 獲取孔洞的邊界資訊
-    x, y, w, h = stats[label, cv2.CC_STAT_LEFT], stats[label, cv2.CC_STAT_TOP], stats[label, cv2.CC_STAT_WIDTH], stats[label, cv2.CC_STAT_HEIGHT]
-
-    # 放大範圍
-    expanded_x = max(0, x - expansion)
-    expanded_y = max(0, y - expansion)
-    expanded_w = min(original_gray_image.shape[1], x + w + expansion) - expanded_x
-    expanded_h = min(original_gray_image.shape[0], y + h + expansion) - expanded_y
-
-    # 裁剪放大區域
-    cropped_region = original_gray_image[expanded_y:expanded_y + expanded_h, expanded_x:expanded_x + expanded_w]
-
-    # 確保裁剪區域不為空
-    if cropped_region.size == 0:
-        print(f"裁剪區域為空，跳過處理 label {label}")
-        return
-
-    # 將裁剪的灰階圖像轉換為彩色圖像（BGR 格式）以支持彩色線條
-    cropped_region_color = cv2.cvtColor(cropped_region, cv2.COLOR_GRAY2BGR)
-
-    # 添加橫切線（綠色）
-    line_y = expanded_h // 2  # 水平線位於裁剪區域的中間
-    cv2.line(cropped_region_color, (0, line_y), (expanded_w - 1, line_y), (0, 255, 0), 1)
-
-    # 提取橫切線上的灰階值
-    cross_section = cropped_region[line_y, :]
-
-    # 保存裁剪後的放大圖像
-    output_image_path = os.path.join(output_dir, f"hole_{label}_zoomed.png")
-    cv2.imwrite(output_image_path, cropped_region_color)
-    # print(f"放大區域圖像已保存到: {output_image_path}")
-
-    # 檢查橫切線數據是否有效
-    if np.all(cross_section == 0):
-        print(f"橫切線上的灰階值全為 0，檢查裁剪區域或遮罩 label {label}")
-        return
-
-    # 繪製灰階變化曲線
-    plt.figure(figsize=(10, 6))
-    plt.plot(cross_section, label=f'Hole {label} Cross Section')
-    plt.title(f'Hole {label} Grayscale Variation Along Cross Section')
-    plt.xlabel('Pixel Position Along Line')
-    plt.ylabel('Grayscale Value')
-    plt.legend()
-    plt.grid()
-    plt.tight_layout()
-
-    # 保存灰階變化圖
-    output_plot_path = os.path.join(output_dir, f"hole_{label}_grayscale_plot.png")
-    plt.savefig(output_plot_path)
-    plt.close()
-    print(f"灰階變化曲線已保存到: {output_plot_path}")
 
 def analyze_hole_with_cross_section(original_gray_image, label, stats, output_dir,input_file, expansion=10):
     """
@@ -111,7 +85,8 @@ def analyze_hole_with_cross_section(original_gray_image, label, stats, output_di
 
     # 保存裁剪後的放大圖像
     output_image_path = os.path.join(output_dir, f"{input_file}_hole_{label}_zoomed.png")
-    cv2.imwrite(output_image_path, cropped_region_color)
+    # cropped_region_color = add_scale_bar(cropped_region_color,(20, expanded_h - 20))
+    # cv2.imwrite(output_image_path, cropped_region_color)
     # print(f"放大區域圖像已保存到: {output_image_path}")
 
     # 檢查橫切線數據是否有效
@@ -180,13 +155,13 @@ def process_and_merge_images():
 
     for input_file in tqdm(input_files, desc="Processing images"):
         id = input_file.split('_')[1]
-        if int(id) != cur_id:
-            continue
-        if limit == 4:
-            cur_id += 1
-            limit = 0
-            continue
-        limit += 1
+        # if int(id) != cur_id:
+        #     continue
+        # if limit == 4:
+        #     cur_id += 1
+        #     limit = 0
+        #     continue
+        # limit += 1
         center_ratio, offset_x, offset_y = circle_info[id]['ratio'], circle_info[id]['x'], circle_info[id]['y']
         input_path = os.path.join(input_dir, input_file)
 
@@ -196,7 +171,7 @@ def process_and_merge_images():
             print(f"無法讀取灰度圖像: {input_file}")
             continue
         original_file = re.sub("concat_", "", input_file)
-        original_file_path = os.path.join("analysis_data", original_file)  # 假設格式為 id.jpg
+        original_file_path = os.path.join(origin_dir, original_file)  # 假設格式為 id.jpg
         original_gray_image = cv2.imread(original_file_path, cv2.IMREAD_GRAYSCALE)
         if original_gray_image is None:
             print(f"無法讀取訓練數據灰度圖像: {original_file_path}")
@@ -227,7 +202,7 @@ def process_and_merge_images():
             cv2.rectangle(color_image, (x, y), (x + w, y + h), (0, 0, 0), 1)
             cx, cy = int(centroids[label][0]), int(centroids[label][1])
             cv2.putText(color_image, str(label), (int(cx), int(cy)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0,0), 2)
-            analyze_hole_with_cross_section(original_gray_image, label, stats, output_dir,input_file)
+            # analyze_hole_with_cross_section(original_gray_image, label, stats, output_dir,input_file)
         
         # 計算非孔洞區域的灰階平均值
         non_hole_mask = (binary_image == 0)
@@ -260,10 +235,10 @@ def process_and_merge_images():
             cv2.cvtColor(circle_region, cv2.COLOR_GRAY2BGR),
             color_image
         ))
-
+        merged_image = add_scale_bar(merged_image, (50, merged_image.shape[0] - 30))
         # 保存合併圖像
         merged_output_path = os.path.join(output_dir, f"merged_{input_file}")
-        cv2.imwrite(merged_output_path, merged_image)
+        # cv2.imwrite(merged_output_path, merged_image)
 
 
     # 分組統計
@@ -297,6 +272,18 @@ def plot_grouped_hole_analysis(csv_path):
     plt.savefig(combined_output_file)
     # plt.show()
 
+color_mapping = {
+    "1": "blue",
+    "2": "orange",
+    "3": "green",
+    "4": "red",
+    "5": "purple",
+    "6": "brown",
+    "7": "pink",
+    "8": "gray",
+    "9": "cyan"
+}
+
 def plot_non_hole_distribution(csv_path="non_hole_distribution.csv"):
     """
     視覺化非孔洞區域的灰階分布。
@@ -307,33 +294,44 @@ def plot_non_hole_distribution(csv_path="non_hole_distribution.csv"):
     # 獲取所有唯一圖像的文件名
     files = df['file'].unique()
 
-    # 為每個圖像繪製灰階分布圖
-    # for file in files:
-    #     file_df = df[df['file'] == file]
-    #     plt.figure(figsize=(10, 6))
-    #     plt.bar(file_df['gray_level'], file_df['pixel_count'], width=1, align='center')
-    #     plt.title(f"Non-Hole Grayscale Distribution for {file}")
-    #     plt.xlabel("Grayscale Level")
-    #     plt.ylabel("Pixel Count")
-    #     plt.tight_layout()
-
-    #     # 保存圖表
-    #     output_file = os.path.join(output_dir, f"non_hole_distribution_{file}.png")
-    #     plt.savefig(output_file)
-    #     plt.close()
-        # print(f"灰階分布圖已保存到: {output_file}")
-
     # 可選：將所有圖像的灰階分布疊加在一個圖表中
     plt.figure(figsize=(12, 8))
     for file in files:
         file_df = df[df['file'] == file]
-        plt.plot(file_df['gray_level'], file_df['pixel_count'], label=file)
+        file_number = file.split('_')[1]
+        color = color_mapping.get(file_number, "black") 
+        plt.plot(file_df['gray_level'], file_df['pixel_count'], label=file, color=color)
 
     plt.title("Combined Non-Hole Grayscale Distribution")
     plt.xlabel("Grayscale Level")
     plt.ylabel("Pixel Count")
     plt.legend(loc='upper right', fontsize='small')
     plt.tight_layout()
+
+    df['category'] = df['file'].apply(lambda x: x.split('_')[1])
+    grouped0 = df.groupby(['gray_level', 'category'])['pixel_count'].mean().reset_index()
+    plt.figure(figsize=(12, 8))
+    for category in sorted(grouped0['category'].unique(), key=int):  # 確保按類別順序排序
+        category_df = grouped0[grouped0['category'] == category]
+        plt.plot(
+            category_df['gray_level'],
+            category_df['pixel_count'],
+            label=f"Category {category}",
+            color=color_mapping.get(category, "black")  # 根據類別選擇顏色
+        )
+
+    plt.title("Average Grayscale Distribution for Each Category")
+    plt.xlabel("Grayscale Level")
+    plt.ylabel("Average Pixel Count")
+    plt.legend(loc='upper right', fontsize='small')
+    plt.tight_layout()
+
+    # 保存結果圖
+    output_file = os.path.join(output_dir, "各類別平均灰階分布圖.png")
+    plt.savefig(output_file)
+    plt.close()
+
+    print(f"各類別平均灰階分布圖已保存到: {output_file}")
 
     # 保存綜合視覺化
     combined_output_file = os.path.join(output_dir, "非孔洞區綜合灰階分布圖.png")

@@ -15,13 +15,17 @@ import matplotlib.pyplot as plt
 import torch
 import numpy as np
 
+def dice_loss(pred, target, smooth=1e-6):
+    pred = torch.sigmoid(pred)  # 使用 Sigmoid 激活函數
+    intersection = torch.sum(pred * target)
+    dice = (2. * intersection + smooth) / (torch.sum(pred) + torch.sum(target) + smooth)
+    return 1 - dice
 
 def train(model, num_epochs, train_loader, optimizer, start_epoch):
     loss_arr = []
     model.zero_grad()
     scalar = GradScaler()
     for epoch in range(start_epoch, num_epochs):
-        # torch.cuda.empty_cache()
         print(f"\nEpoch {epoch+1}/{num_epochs}")
 
         batch_iterator = tqdm(
@@ -47,7 +51,10 @@ def train(model, num_epochs, train_loader, optimizer, start_epoch):
                 out = model(x)
                 # print(out.min(), out.max())
                 # loss = torch.nn.MSELoss()(out, y)
-                loss = torch.nn.BCEWithLogitsLoss()(out, y)
+                bce_loss = torch.nn.BCEWithLogitsLoss()(out, y)
+                d_loss = dice_loss(out, y)
+
+                loss = bce_loss + d_loss
             scalar.scale(loss).backward()
             scalar.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -64,7 +71,7 @@ def train(model, num_epochs, train_loader, optimizer, start_epoch):
         # scheduler.step(val_loss)
         loss_arr.append((epoch + 1, np.mean(total_loss), val_loss))
 
-        path = f"model_bce_-1-1_b8_{epoch + 1}.pt"
+        path = f"model_combine_b8_{epoch + 1}.pt"
         if epoch % 1 == 0:
             torch.save(
                 {
@@ -77,15 +84,6 @@ def train(model, num_epochs, train_loader, optimizer, start_epoch):
             print(f"Model saved to {path}")
 
         print(loss_arr)
-
-    # loss_array = np.array(loss_arr)
-    # np.savetxt(
-    #     "loss.txt",
-    #     loss_array,
-    #     header="epoch, avg_training_loss, avg_val_loss",
-    #     delimiter=", ",
-    #     fmt="%s",
-    # )
 
 
 def eval(model, val_loader, epoch, device="cuda"):
@@ -103,7 +101,11 @@ def eval(model, val_loader, epoch, device="cuda"):
             with autocast():
                 out = model(x)
                 # loss = torch.nn.MSELoss()(out, y)
-                loss = torch.nn.BCEWithLogitsLoss()(out, y)
+                bce_loss = torch.nn.BCEWithLogitsLoss()(out, y)
+                d_loss = dice_loss(out, y)
+
+                loss = bce_loss + d_loss
+
                 probability = torch.sigmoid(out)
                 predictions = (probability > 0.5).float()
 
@@ -134,19 +136,19 @@ if __name__ == "__main__":
     # Choosing Adam as our optimizer
     optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-4)
 
-    model_path = 'model_bce_-1-1_b8_21.pt'
-    checkpoint = torch.load(model_path)
+    # model_path = 'model_bce_-1-1_b8_21.pt'
+    # checkpoint = torch.load(model_path)
 
-    model.load_state_dict(checkpoint['model_state_dict'])
+    # model.load_state_dict(checkpoint['model_state_dict'])
 
-    # # # 加载优化器状态
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    # # # # 加载优化器状态
+    # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     # for param_group in optimizer.param_groups:
     #     param_group['lr'] = 1e-4
     # Constants for UNet model training process
     BATCH_SIZE = 8
     NUM_EPOCHS = 40
-    START_EPOCH = 21
+    START_EPOCH = 0
     IMG_WIDTH = 512
     IMG_HEIGHT = 512
     # Load data

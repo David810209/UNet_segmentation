@@ -24,7 +24,30 @@ images_info = [
         (773, 645),
         (738, 820),
     ]
-    
+
+def compute_iou(pred, target):
+    """
+    計算 IoU (Intersection over Union)
+    Args:
+        pred (torch.Tensor): 預測二值張量
+        target (torch.Tensor): 真值二值張量
+    Returns:
+        float: IoU 值
+    """
+    # 確保 pred 和 target 是布爾類型
+    pred = pred.bool()
+    target = target.bool()
+
+    # 計算交集和聯集
+    intersection = (pred & target).float().sum()  # 交集
+    union = (pred | target).float().sum()        # 聯集
+
+    if union == 0:
+        return 0.0  # 避免除以零
+    return intersection / union
+
+
+
 
 def load_model(device):
     # 載入訓練好的 UNet 模型
@@ -39,7 +62,7 @@ def evaluate_model(model, test_loader, output_dir,output_dir2, device="cuda"):
     model.eval()
 
     losses = []
-
+    iou_scores = []
     with torch.no_grad():
         for idx, (x, y, filename) in enumerate(
             tqdm(test_loader, desc="Evaluating", unit="batch")
@@ -51,6 +74,9 @@ def evaluate_model(model, test_loader, output_dir,output_dir2, device="cuda"):
             output = (output > 0.5).float()
 
             for i in range(x.size(0)):
+                iou = compute_iou(output[i], y[i])  # 計算每張影像的 IoU
+                iou_scores.append(iou.cpu().numpy())
+
                 file_start_number = int(filename[i].split("_")[0])
                 width, height = images_info[file_start_number - 1]  # 确保宽高正确
 
@@ -86,14 +112,15 @@ def evaluate_model(model, test_loader, output_dir,output_dir2, device="cuda"):
             losses.append(loss.item())
 
     print(f"Average Loss: {np.mean(losses):.4f}")
+    print(f"Average IoU: {np.mean(iou_scores):.4f}")
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     model = load_model(device=device)
-    output_dir = f"output_combine"
-    output_dir2  = f"output_single"
+    output_dir = f"output_tmp_single"
+    output_dir2  = f"output_tmp_combine"
     # 清除之前的結果
     for folder in [output_dir, output_dir2]:
         if os.path.exists(folder):
@@ -104,8 +131,8 @@ if __name__ == "__main__":
 
     # 加載測試數據
     test_data = CustomDataset(
-        "train_data",
-        "train_data_mask",
+        "test_data",
+        "test_data_mask",
         transform=T.Compose([T.ToTensor(), T.Resize((512, 512))]),
     )
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
@@ -114,12 +141,12 @@ if __name__ == "__main__":
     evaluate_model(model, test_loader,output_dir,output_dir2)
 
 # 加載測試數據
-    test_data2 = CustomDataset(
-        "test_data",
-        "test_data_mask",
-        transform=T.Compose([T.ToTensor(), T.Resize((512, 512))]),
-    )
-    test_loader2 = DataLoader(test_data2, batch_size=1, shuffle=False)
+    # test_data2 = CustomDataset(
+    #     "test_data",
+    #     "test_data_mask",
+    #     transform=T.Compose([T.ToTensor(), T.Resize((512, 512))]),
+    # )
+    # test_loader2 = DataLoader(test_data2, batch_size=1, shuffle=False)
 
-    # 模型評估
-    evaluate_model(model, test_loader2,output_dir,output_dir2)
+    # # 模型評估
+    # evaluate_model(model, test_loader2,output_dir,output_dir2)
